@@ -117,7 +117,8 @@
                         </button>
                         @endif
 
-                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                        <!-- Basic Unit Info -->
+                        <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
                             <div>
                                 <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wider">Satuan</label>
                                 <select wire:model="productUnits.{{ $index }}.unit_id" class="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white py-2 px-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition">
@@ -136,7 +137,7 @@
                             </div>
 
                             <div>
-                                <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wider">Harga Jual</label>
+                                <label class="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-2 uppercase tracking-wider">Harga Dasar</label>
                                 <input type="number" step="0.01" wire:model="productUnits.{{ $index }}.price" class="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white py-2 px-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition" placeholder="0">
                                 @error("productUnits.$index.price") <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                             </div>
@@ -146,6 +147,38 @@
                                 <input type="number" step="0.01" wire:model="productUnits.{{ $index }}.min_qty" class="w-full text-sm rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white py-2 px-3 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500 transition" placeholder="1">
                                 @error("productUnits.$index.min_qty") <span class="text-red-500 text-xs mt-1 block">{{ $message }}</span> @enderror
                             </div>
+                        </div>
+
+                        <!-- Tiered Pricing Section -->
+                        <div class="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+                            <div class="flex items-center justify-between mb-3">
+                                <label class="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wider">💰 Harga Tingkatan</label>
+                                <button type="button" wire:click="addUnitTierPrice({{ $index }})" class="text-xs px-2 py-1 bg-indigo-100 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300 rounded hover:bg-indigo-200 dark:hover:bg-indigo-900/60 transition">
+                                    + Tambah Tier
+                                </button>
+                            </div>
+
+                            @if(isset($productUnits[$index]['tierPrices']) && count($productUnits[$index]['tierPrices']) > 0)
+                            <div class="space-y-2">
+                                @foreach($productUnits[$index]['tierPrices'] as $tierIndex => $tierPrice)
+                                <div class="flex items-end gap-2 bg-gray-50 dark:bg-gray-700/50 p-3 rounded-lg">
+                                    <div class="flex-1">
+                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Min Qty</label>
+                                        <input type="number" step="0.01" wire:model="productUnits.{{ $index }}.tierPrices.{{ $tierIndex }}.min_quantity" class="w-full text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-600 px-2 py-1 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="misal: 10">
+                                    </div>
+                                    <div class="flex-1">
+                                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-400 mb-1">Harga</label>
+                                        <input type="number" step="0.01" wire:model="productUnits.{{ $index }}.tierPrices.{{ $tierIndex }}.price" class="w-full text-sm rounded border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-600 px-2 py-1 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition" placeholder="28000">
+                                    </div>
+                                    <button type="button" wire:click="removeUnitTierPrice({{ $index }}, {{ $tierIndex }})" class="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-900/20 rounded transition">
+                                        <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                                    </button>
+                                </div>
+                                @endforeach
+                            </div>
+                            @else
+                            <p class="text-xs text-gray-500 dark:text-gray-400 italic">Belum ada tingkatan harga. Tambahkan untuk memberikan harga diskon berdasarkan kuantitas.</p>
+                            @endif
                         </div>
                     </div>
                     @endforeach

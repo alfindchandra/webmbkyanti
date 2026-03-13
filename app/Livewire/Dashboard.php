@@ -17,12 +17,12 @@ class Dashboard extends Component
         $totalProducts = Product::count();
         $totalTransactions = Transaction::count();
 
-        // Sample chart data (last 7 days)
+        
         $chartData = collect(range(0, 6))->map(function($days) {
-            $date = now()->subDays(6 - $days);
+            $date = now()->startOfWeek()->addDays($days);
             return [
-                'date' => $date->format('D'),
-                'total' => Transaction::whereDate('created_at', $date)->sum('grand_total')
+                'date' => $date->translatedFormat('D'), 
+        'total' => Transaction::whereDate('created_at', $date)->sum('grand_total')
             ];
         });
 

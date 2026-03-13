@@ -5,12 +5,14 @@ namespace App\Livewire;
 use Livewire\Component;
 use App\Models\Product;
 use App\Models\ProductUnit;
+use App\Models\ProductUnitPrice;
 use App\Models\Category;
 use App\Models\Unit;
 use App\Models\Transaction;
 use App\Models\TransactionItem;
 use App\Models\StockMovement;
 use Illuminate\Support\Str;
+use Livewire\Attributes\On;
 
 class Pos extends Component
 {
@@ -46,6 +48,80 @@ class Pos extends Component
     public bool $customItemSaveToDb = false;
     public $customItemCategoryId = '';
     public $customItemBaseUnitId = '';
+
+    #[\Livewire\Attributes\Computed]
+    public function hasCart()
+    {
+        return !empty($this->cart);
+    }
+
+    public function mount()
+    {
+        $this->loadCartFromLocalStorage();
+        $this->loadSearchFromStorage();
+    }
+
+    public function loadSearchFromStorage()
+    {
+        $this->dispatch('load-search-from-storage');
+    }
+
+    public function saveSearchToStorage()
+    {
+        $this->dispatch('save-search-to-storage', search: $this->search);
+    }
+
+    #[On('restore-search')]
+    public function restoreSearch($search)
+    {
+        if (is_string($search) && !empty($search)) {
+            $this->search = $search;
+        }
+    }
+
+    public function updatedSearch()
+    {
+        $this->saveSearchToStorage();
+    }
+
+    public function clearSearch()
+    {
+        $this->search = '';
+        $this->saveSearchToStorage();
+    }
+
+    #[On('restore-cart')]
+    public function restoreCart($cartData)
+    {
+        if (is_array($cartData) && !empty($cartData)) {
+            $this->cart = $cartData;
+        }
+    }
+
+    #[On('restore-cart-data')]
+    public function restoreCartData($cartData)
+    {
+        if (is_array($cartData) && !empty($cartData)) {
+            $this->cart = $cartData;
+        }
+    }
+
+    public function loadCartFromLocalStorage()
+    {
+        $this->dispatch('load-cart-from-storage');
+    }
+
+    public function restoreCartFromSession($cartData)
+    {
+        if (is_array($cartData) && !empty($cartData)) {
+            $this->cart = $cartData;
+        }
+    }
+
+    public function saveCartToLocalStorage()
+    {
+        $this->dispatch('save-cart-to-storage', cart: $this->cart);
+    }
 
     public function render()
     {
@@ -85,28 +161,27 @@ class Pos extends Component
             return;
         }
 
-        // Find all sibling product units with the same unit_id to act as price tiers
-        $sameSatuan = $product->productUnits->where('unit_id', $productUnit->unit_id)->sortBy('min_qty')->values();
-
         $existingIndex = collect($this->cart)->search(function ($item) use ($product, $productUnit) {
             return $item['product_id'] == $product->id && $item['unit_id'] == $productUnit->unit_id;
         });
 
+        // Load tiered prices from ProductUnitPrice table
+        $tieredPrices = ProductUnitPrice::where('product_unit_id', $productUnit->id)
+            ->orderBy('min_quantity')
+            ->get(['min_quantity', 'price'])
+            ->map(fn ($p) => ['min_quantity' => (int)$p->min_quantity, 'price' => (float)$p->price])
+            ->toArray();
+
         if ($existingIndex !== false) {
             $newQty = $this->cart[$existingIndex]['quantity'] + 1;
-            $priceData = $this->resolvePrice($sameSatuan, (float) $productUnit->price, $newQty);
+            $priceData = $this->resolvePrice($productUnit, $tieredPrices, $newQty);
             $this->cart[$existingIndex]['quantity']       = $newQty;
             $this->cart[$existingIndex]['price']          = $priceData['price'];
             $this->cart[$existingIndex]['subtotal']       = $newQty * $priceData['price'];
             $this->cart[$existingIndex]['applied_tier']   = $priceData['applied_tier'];
             $this->cart[$existingIndex]['discount_amount'] = $priceData['discount_amount'];
         } else {
-            $tieredPrices = $sameSatuan->filter(fn ($u) => (float) $u->min_qty > 1)->map(fn ($u) => [
-                'min_quantity' => (float) $u->min_qty,
-                'price'        => (float) $u->price,
-            ])->values()->toArray();
-
-            $priceData = $this->resolvePrice($sameSatuan, (float) $productUnit->price, 1);
+            $priceData = $this->resolvePrice($productUnit, $tieredPrices, 1);
 
             $this->cart[] = [
                 'cart_id'          => Str::random(8),
@@ -127,33 +202,36 @@ class Pos extends Component
         }
 
         $this->search = '';
+        $this->saveCartToLocalStorage();
     }
 
     /**
-     * Resolve the best price from sibling product_units (same unit_id)
-     * sorted by min_qty. Each row with a higher min_qty acts as a price tier.
+     * Resolve the best price from tiered prices
+     * Returns the price for the given quantity based on minimum quantity thresholds
      */
-    private function resolvePrice($sameSatuan, float $basePrice, float $qty): array
+    private function resolvePrice($productUnit, array $tieredPrices, float $qty): array
     {
         $appliedTier = null;
-        $finalPrice  = $basePrice;
+        $finalPrice  = (float) $productUnit->price;
 
-        // Sort descending by min_qty and find the first tier where qty >= min_qty
-        $tiers = $sameSatuan->sortByDesc('min_qty');
-        foreach ($tiers as $tier) {
-            if ($qty >= (float) $tier->min_qty) {
-                $finalPrice  = (float) $tier->price;
-                if ((float) $tier->min_qty > 1) {
+        // If there are tiered prices defined, find the applicable one
+        if (!empty($tieredPrices)) {
+            // Sort by min_quantity descending to find the highest applicable tier
+            usort($tieredPrices, fn ($a, $b) => $b['min_quantity'] <=> $a['min_quantity']);
+            
+            foreach ($tieredPrices as $tier) {
+                if ($qty >= $tier['min_quantity']) {
+                    $finalPrice = (float) $tier['price'];
                     $appliedTier = [
-                        'min_quantity' => (float) $tier->min_qty,
-                        'price'        => (float) $tier->price,
+                        'min_quantity' => $tier['min_quantity'],
+                        'price'        => (float) $tier['price'],
                     ];
+                    break;
                 }
-                break;
             }
         }
 
-        $discountAmount = ($basePrice - $finalPrice) * $qty;
+        $discountAmount = ((float) $productUnit->price - $finalPrice) * $qty;
 
         return [
             'price'          => $finalPrice,
@@ -171,25 +249,27 @@ class Pos extends Component
                 return;
             }
 
-            $item    = $this->cart[$index];
-            $product = Product::with('productUnits.unit')->find($item['product_id']);
-            $sameSatuan = $product
-                ? $product->productUnits->where('unit_id', $item['unit_id'])->sortBy('min_qty')->values()
-                : collect();
+            $item = $this->cart[$index];
+            $productUnit = ProductUnit::find($item['product_unit_id']);
+            
+            if ($productUnit) {
+                $tieredPrices = $item['tiered_prices'] ?? [];
+                $priceData = $this->resolvePrice($productUnit, $tieredPrices, $qty);
 
-            $priceData = $this->resolvePrice($sameSatuan, $item['base_price'], $qty);
-
-            $this->cart[$index]['quantity']       = $qty;
-            $this->cart[$index]['price']          = $priceData['price'];
-            $this->cart[$index]['subtotal']       = $qty * $priceData['price'];
-            $this->cart[$index]['applied_tier']   = $priceData['applied_tier'];
-            $this->cart[$index]['discount_amount'] = $priceData['discount_amount'];
+                $this->cart[$index]['quantity']       = $qty;
+                $this->cart[$index]['price']          = $priceData['price'];
+                $this->cart[$index]['subtotal']       = $qty * $priceData['price'];
+                $this->cart[$index]['applied_tier']   = $priceData['applied_tier'];
+                $this->cart[$index]['discount_amount'] = $priceData['discount_amount'];
+                $this->saveCartToLocalStorage();
+            }
         }
     }
 
     public function removeFromCart($cartId)
     {
         $this->cart = collect($this->cart)->reject(fn ($item) => $item['cart_id'] === $cartId)->values()->toArray();
+        $this->saveCartToLocalStorage();
     }
 
     public function clearCart()
@@ -199,6 +279,7 @@ class Pos extends Component
         $this->tax             = 0;
         $this->payment         = 0;
         $this->additionalCosts = [];
+        $this->saveCartToLocalStorage();
     }
 
     public function closeReceiptModal()
@@ -226,6 +307,7 @@ class Pos extends Component
             if ($index !== false) {
                 $this->cart[$index]['price']    = $price;
                 $this->cart[$index]['subtotal'] = $this->cart[$index]['quantity'] * $price;
+                $this->saveCartToLocalStorage();
                 $this->showEditPriceModal = false;
                 $this->editingCartId = null;
                 $this->editingPrice = 0;
@@ -247,6 +329,7 @@ class Pos extends Component
         if ($index !== false) {
             $this->cart[$index]['price']    = $price;
             $this->cart[$index]['subtotal'] = $this->cart[$index]['quantity'] * $price;
+            $this->saveCartToLocalStorage();
         }
     }
 
@@ -318,6 +401,8 @@ class Pos extends Component
             'applied_tier'    => null,
             'tiered_prices'   => [],
         ];
+
+        $this->saveCartToLocalStorage();
 
         // Reset form
         $this->customItemName       = '';

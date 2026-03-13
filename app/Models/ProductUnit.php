@@ -23,4 +23,22 @@ class ProductUnit extends Model
     {
         return $this->belongsTo(Unit::class);
     }
+
+    public function prices()
+    {
+        return $this->hasMany(ProductUnitPrice::class)->orderBy('min_quantity');
+    }
+
+    /**
+     * Get the price for a given quantity
+     */
+    public function getPriceForQuantity($quantity)
+    {
+        $price = $this->prices()
+            ->where('min_quantity', '<=', $quantity)
+            ->orderByDesc('min_quantity')
+            ->first();
+
+        return $price ? $price->price : $this->price;
+    }
 }

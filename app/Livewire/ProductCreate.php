@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\Unit;
 use App\Models\ProductUnit;
+use App\Models\ProductUnitPrice;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
 
@@ -41,6 +42,7 @@ class ProductCreate extends Component
             'conversion' => 1,
             'price' => 0,
             'min_qty' => 1,
+            'tierPrices' => [],
         ];
     }
 
@@ -48,6 +50,24 @@ class ProductCreate extends Component
     {
         unset($this->productUnits[$index]);
         $this->productUnits = array_values($this->productUnits);
+    }
+
+    public function addUnitTierPrice($unitIndex)
+    {
+        if (!isset($this->productUnits[$unitIndex]['tierPrices'])) {
+            $this->productUnits[$unitIndex]['tierPrices'] = [];
+        }
+
+        $this->productUnits[$unitIndex]['tierPrices'][] = [
+            'min_quantity' => 1,
+            'price' => 0,
+        ];
+    }
+
+    public function removeUnitTierPrice($unitIndex, $tierIndex)
+    {
+        unset($this->productUnits[$unitIndex]['tierPrices'][$tierIndex]);
+        $this->productUnits[$unitIndex]['tierPrices'] = array_values($this->productUnits[$unitIndex]['tierPrices']);
     }
 
     public function store()
@@ -62,6 +82,8 @@ class ProductCreate extends Component
             'productUnits.*.conversion' => 'required|numeric|min:0.01',
             'productUnits.*.price' => 'required|numeric|min:0',
             'productUnits.*.min_qty' => 'required|numeric|min:0.01',
+            'productUnits.*.tierPrices.*.min_quantity' => 'nullable|numeric|min:1',
+            'productUnits.*.tierPrices.*.price' => 'nullable|numeric|min:0',
             'image' => 'nullable|image|max:2048',
         ]);
 
@@ -81,15 +103,28 @@ class ProductCreate extends Component
             'image' => $imagePath,
         ]);
 
-        // Create product units
+        // Create product units and their tier prices
         foreach ($this->productUnits as $unit) {
-            ProductUnit::create([
+            $productUnit = ProductUnit::create([
                 'product_id' => $product->id,
                 'unit_id' => $unit['unit_id'],
                 'conversion' => $unit['conversion'],
                 'price' => $unit['price'],
                 'min_qty' => $unit['min_qty'],
             ]);
+
+            // Create tier prices if provided
+            if (isset($unit['tierPrices']) && is_array($unit['tierPrices'])) {
+                foreach ($unit['tierPrices'] as $tierPrice) {
+                    if (!empty($tierPrice['min_quantity']) && !empty($tierPrice['price'])) {
+                        ProductUnitPrice::create([
+                            'product_unit_id' => $productUnit->id,
+                            'min_quantity' => $tierPrice['min_quantity'],
+                            'price' => $tierPrice['price'],
+                        ]);
+                    }
+                }
+            }
         }
 
         session()->flash('message', 'Produk berhasil dibuat!');

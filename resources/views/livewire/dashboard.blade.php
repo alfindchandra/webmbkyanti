@@ -92,34 +92,107 @@
     <!-- Chart Block -->
     <div class="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-8 shadow-sm hover:shadow-lg transition-shadow duration-300">
         <div class="mb-8">
-            <h3 class="text-xl font-bold text-gray-900 dark:text-white">Analitik Penjualan</h3>
+            <h3 class="text-xl font-bold text-gray-900 dark:text-white">Grafik Penjualan 7 Hari Terakhir</h3>
             <p class="mt-1 text-sm text-gray-600 dark:text-gray-400">Tren penjualan dalam 7 hari terakhir</p>
         </div>
-        <div class="h-80 flex items-end justify-between space-x-3">
-            @foreach($chartData as $data)
-            <div class="flex-1 flex flex-col items-center group relative">
-                <!-- Bar Container -->
-                @php 
-                    $maxAmount = max(1, $chartData->max('total'));
-                    $heightPercentage = ($data['total'] / $maxAmount) * 100;
-                    $heightPercentage = max(5, $heightPercentage);
-                @endphp
-                
-                <div class="w-full flex flex-col items-center">
-                    <!-- Bar -->
-                    <div class="w-full relative bg-gradient-to-t from-indigo-600 to-indigo-400 dark:from-indigo-500 dark:to-indigo-400 rounded-t-lg transition-all duration-300 hover:shadow-lg hover:from-indigo-700 hover:to-indigo-500 cursor-pointer transform group-hover:scale-y-105 origin-bottom" style="height: {{ $heightPercentage }}%; min-height: 8px;">
-                        <!-- Tooltip -->
-                        <div class="absolute -top-12 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 bg-gray-900 dark:bg-gray-700 text-white text-xs font-semibold rounded-lg py-2 px-3 pointer-events-none transition-opacity whitespace-nowrap shadow-xl z-10">
-                            Rp {{ number_format($data['total'], 0, ',', '.') }}
-                            <div class="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-gray-900 dark:border-t-gray-700"></div>
-                        </div>
-                    </div>
-                </div>
-                <!-- Label -->
-                <span class="text-xs font-semibold text-gray-600 dark:text-gray-400 mt-3">{{ $data['date'] }}</span>
-            </div>
-            @endforeach
+        <div class="relative h-80">
+            <canvas id="salesChart"></canvas>
         </div>
     </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const chartData = @json($chartData);
+            const ctx = document.getElementById('salesChart');
+            
+            if (ctx) {
+                const chart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: chartData.map(d => d.date),
+                        datasets: [{
+                            label: 'Penjualan (Rp)',
+                            data: chartData.map(d => d.total),
+                            borderColor: 'rgb(79, 70, 229)',
+                            backgroundColor: 'rgba(79, 70, 229, 0.1)',
+                            borderWidth: 3,
+                            fill: true,
+                            tension: 0.4,
+                            pointRadius: 6,
+                            pointBackgroundColor: 'rgb(79, 70, 229)',
+                            pointBorderColor: '#fff',
+                            pointBorderWidth: 2,
+                            pointHoverRadius: 8,
+                            pointHoverBackgroundColor: 'rgb(99, 102, 241)',
+                            hoverBackgroundColor: 'rgba(79, 70, 229, 0.2)'
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            legend: {
+                                display: true,
+                                position: 'top',
+                                labels: {
+                                    color: document.documentElement.classList.contains('dark') ? '#d1d5db' : '#6b7280',
+                                    font: { size: 12, weight: 'bold' },
+                                    padding: 15,
+                                    usePointStyle: true,
+                                    pointStyle: 'circle'
+                                }
+                            },
+                            tooltip: {
+                                enabled: true,
+                                backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                                titleColor: '#fff',
+                                bodyColor: '#fff',
+                                borderColor: 'rgb(79, 70, 229)',
+                                borderWidth: 1,
+                                padding: 12,
+                                displayColors: true,
+                                callbacks: {
+                                    label: function(context) {
+                                        const value = context.parsed.y;
+                                        return 'Rp ' + value.toLocaleString('id-ID', { maximumFractionDigits: 0 });
+                                    }
+                                }
+                            }
+                        },
+                        scales: {
+                            x: {
+                                grid: {
+                                    color: document.documentElement.classList.contains('dark') ? 'rgba(107, 114, 128, 0.2)' : 'rgba(209, 213, 219, 0.3)',
+                                    drawBorder: false
+                                },
+                                ticks: {
+                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280',
+                                    font: { size: 11 }
+                                }
+                            },
+                            y: {
+                                beginAtZero: true,
+                                grid: {
+                                    color: document.documentElement.classList.contains('dark') ? 'rgba(107, 114, 128, 0.2)' : 'rgba(209, 213, 219, 0.3)',
+                                    drawBorder: false
+                                },
+                                ticks: {
+                                    color: document.documentElement.classList.contains('dark') ? '#9ca3af' : '#6b7280',
+                                    font: { size: 11 },
+                                    callback: function(value) {
+                                        return 'Rp ' + value.toLocaleString('id-ID', { maximumFractionDigits: 0 });
+                                    }
+                                }
+                            }
+                        },
+                        interaction: {
+                            mode: 'index',
+                            intersect: false
+                        }
+                    }
+                });
+            }
+        });
+    </script>
 
 </div>

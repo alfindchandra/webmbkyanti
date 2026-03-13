@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Category;
 use App\Models\Unit;
 use App\Models\ProductUnit;
+use App\Models\ProductUnitPrice;
 use Livewire\WithFileUploads;
 use Illuminate\Support\Facades\Storage;
 
@@ -24,7 +25,7 @@ class ProductEdit extends Component
 
     public function mount($id)
     {
-        $this->product = Product::with('productUnits')->findOrFail($id);
+        $this->product = Product::with('productUnits.prices')->findOrFail($id);
         $this->categories = Category::all();
         $this->units = Unit::all();
 
@@ -44,6 +45,11 @@ class ProductEdit extends Component
                 'conversion' => $pu->conversion,
                 'price' => $pu->price,
                 'min_qty' => $pu->min_qty,
+                'tierPrices' => $pu->prices->map(fn ($p) => [
+                    'id' => $p->id,
+                    'min_quantity' => $p->min_quantity,
+                    'price' => $p->price,
+                ])->toArray(),
             ];
         })->toArray();
 
@@ -65,6 +71,7 @@ class ProductEdit extends Component
             'conversion' => 1,
             'price' => 0,
             'min_qty' => 1,
+            'tierPrices' => [],
         ];
     }
 
@@ -72,6 +79,25 @@ class ProductEdit extends Component
     {
         unset($this->productUnits[$index]);
         $this->productUnits = array_values($this->productUnits);
+    }
+
+    public function addUnitTierPrice($unitIndex)
+    {
+        if (!isset($this->productUnits[$unitIndex]['tierPrices'])) {
+            $this->productUnits[$unitIndex]['tierPrices'] = [];
+        }
+
+        $this->productUnits[$unitIndex]['tierPrices'][] = [
+            'id' => null,
+            'min_quantity' => 1,
+            'price' => 0,
+        ];
+    }
+
+    public function removeUnitTierPrice($unitIndex, $tierIndex)
+    {
+        unset($this->productUnits[$unitIndex]['tierPrices'][$tierIndex]);
+        $this->productUnits[$unitIndex]['tierPrices'] = array_values($this->productUnits[$unitIndex]['tierPrices']);
     }
 
     public function update()
@@ -86,6 +112,8 @@ class ProductEdit extends Component
             'productUnits.*.conversion' => 'required|numeric|min:0.01',
             'productUnits.*.price' => 'required|numeric|min:0',
             'productUnits.*.min_qty' => 'required|numeric|min:0.01',
+            'productUnits.*.tierPrices.*.min_quantity' => 'nullable|numeric|min:1',
+            'productUnits.*.tierPrices.*.price' => 'nullable|numeric|min:0',
             'image' => 'nullable|image|max:2048',
         ]);
 
@@ -109,13 +137,13 @@ class ProductEdit extends Component
             'image' => $imagePath,
         ]);
 
-        // Manage Product Units
+        // Manage Product Units and Tier Prices
         $keptUnitIds = collect($this->productUnits)->pluck('id')->filter()->toArray();
         
         ProductUnit::where('product_id', $this->product->id)->whereNotIn('id', $keptUnitIds)->delete();
 
         foreach ($this->productUnits as $unit) {
-            ProductUnit::updateOrCreate(
+            $productUnit = ProductUnit::updateOrCreate(
                 ['id' => $unit['id'] ?? null, 'product_id' => $this->product->id],
                 [
                     'product_id' => $this->product->id,
@@ -125,6 +153,30 @@ class ProductEdit extends Component
                     'min_qty' => $unit['min_qty'],
                 ]
             );
+
+            // Manage tier prices for this unit
+            if (isset($unit['tierPrices']) && is_array($unit['tierPrices'])) {
+                $keptPriceIds = collect($unit['tierPrices'])->pluck('id')->filter()->toArray();
+                
+                // Delete removed tier prices
+                ProductUnitPrice::where('product_unit_id', $productUnit->id)
+                    ->whereNotIn('id', $keptPriceIds)
+                    ->delete();
+
+                // Create or update tier prices
+                foreach ($unit['tierPrices'] as $tierPrice) {
+                    if (!empty($tierPrice['min_quantity']) && !empty($tierPrice['price'])) {
+                        ProductUnitPrice::updateOrCreate(
+                            ['id' => $tierPrice['id'] ?? null, 'product_unit_id' => $productUnit->id],
+                            [
+                                'product_unit_id' => $productUnit->id,
+                                'min_quantity' => $tierPrice['min_quantity'],
+                                'price' => $tierPrice['price'],
+                            ]
+                        );
+                    }
+                }
+            }
         }
 
         session()->flash('message', 'Produk berhasil diperbarui!');

@@ -48,7 +48,7 @@
             <div class="absolute left-0 top-full w-full p-4 bg-white dark:bg-gray-800 shadow-2xl border-b border-blue-100 dark:border-gray-700 z-50 max-h-[70vh] overflow-y-auto">
                 <div class="flex justify-between items-center mb-4 px-2">
                     <h3 class="text-sm font-black text-blue-600 uppercase">Hasil Pencarian "{{ $search }}"</h3>
-                    <button @click="$wire.set('search', '')" class="p-2 bg-red-50 text-red-500 rounded-full">
+                    <button @click="$wire.call('clearSearch')" class="p-2 bg-red-50 text-red-500 rounded-full">
                         <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/></svg>
                     </button>
                 </div>
@@ -59,7 +59,7 @@
                         @foreach($products as $product)
                             <div class="bg-gray-50 dark:bg-gray-700/50 p-3 rounded-2xl border border-transparent hover:border-blue-500 transition cursor-pointer group">
                                 <div class="font-bold text-gray-800 dark:text-white mb-2">{{ $product->name }}</div>
-                                <div class="flex flex-wrap gap-2">
+                                <div class="grid grid-cols-3 gap-2">
                                     @foreach($product->productUnits as $pu)
                                         <button wire:click="addToCart({{ $product->id }}, {{ $pu->id }})" class="flex-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-[11px] font-bold py-2 px-1 rounded-xl hover:bg-blue-600 hover:text-white transition">
                                             {{ $pu->unit->code }}: {{ number_format($pu->price, 0, ',', '.') }}
@@ -167,13 +167,6 @@
                     <span class="text-gray-500 dark:text-gray-400">Subtotal</span>
                     <span class="font-bold dark:text-white">Rp {{ number_format($summary['subtotal'], 0, ',', '.') }}</span>
                 </div>
-
-                @if($summary['savings'] > 0)
-                <div class="flex justify-between text-sm text-emerald-500 font-bold">
-                    <span>Hemat</span>
-                    <span>- Rp {{ number_format($summary['savings'], 0, ',', '.') }}</span>
-                </div>
-                @endif
 
                 @foreach($additionalCosts as $cost)
                 <div class="flex justify-between text-sm text-amber-600">
@@ -357,9 +350,7 @@
                                                 <span class="text-orange-800 dark:text-orange-300 font-medium text-sm">≥ {{ $tier['min_quantity'] }} unit</span>
                                                 <span class="text-orange-900 dark:text-orange-200 font-bold">Rp {{ number_format($tier['price'], 0, ',', '.') }}</span>
                                             </div>
-                                            <div class="text-xs text-emerald-600 dark:text-emerald-400 mt-1">
-                                                Hemat Rp {{ number_format($item['base_price'] - $tier['price'], 0, ',', '.') }} / unit
-                                            </div>
+                                            
                                             @if($isActive)
                                                 <div class="text-xs text-emerald-600 font-bold mt-1 flex items-center gap-1">
                                                     <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>
@@ -385,10 +376,7 @@
                                         <span>Harga Tier:</span>
                                         <span class="font-medium">Rp {{ number_format($item['applied_tier']['price'], 0, ',', '.') }}</span>
                                     </div>
-                                    <div class="flex justify-between font-bold">
-                                        <span>Total Hemat:</span>
-                                        <span>Rp {{ number_format($item['discount_amount'] ?? 0, 0, ',', '.') }}</span>
-                                    </div>
+                                    
                                 </div>
                             </div>
                         @endif
@@ -484,9 +472,7 @@
                 </button>
                 <p class="text-blue-100 font-medium uppercase tracking-widest text-xs mb-1">Total Pembayaran</p>
                 <h2 class="text-4xl font-black">Rp {{ number_format($summary['grand_total'], 0, ',', '.') }}</h2>
-                @if($summary['savings'] > 0)
-                    <p class="text-blue-200 text-sm mt-1">Hemat Rp {{ number_format($summary['savings'], 0, ',', '.') }}</p>
-                @endif
+               
             </div>
 
             <div class="p-8 space-y-5">
@@ -632,12 +618,7 @@
                     <span class="text-gray-500 dark:text-gray-400">Subtotal</span>
                     <span class="text-gray-700 dark:text-gray-300">Rp {{ number_format($receiptData['subtotal'], 0, ',', '.') }}</span>
                 </div>
-                @if($receiptData['savings'] > 0)
-                <div class="flex justify-between text-emerald-600">
-                    <span>Hemat</span>
-                    <span>- Rp {{ number_format($receiptData['savings'], 0, ',', '.') }}</span>
-                </div>
-                @endif
+                
                 @foreach($receiptData['additional_costs'] as $cost)
                 <div class="flex justify-between text-amber-600">
                     <span>{{ $cost['description'] }}</span>
@@ -735,6 +716,81 @@ function printReceipt() {
     setTimeout(function() { printWindow.print(); }, 300);
 }
 </script>
+
 @endif
+
+{{-- Cart Persistence with LocalStorage --}}
+@script
+<script>
+    // Load from localStorage immediately when the component script runs
+    let savedCart = localStorage.getItem('tokoatik_cart');
+    if (savedCart) {
+        try {
+            let cartData = JSON.parse(savedCart);
+            if (cartData && cartData.length > 0) {
+                $wire.dispatch('restore-cart', { cartData: cartData });
+            }
+        } catch (e) {
+            console.error('Error loading cart from localStorage:', e);
+        }
+    }
+
+    let savedSearch = localStorage.getItem('tokoatik_search');
+    if (savedSearch) {
+        try {
+            $wire.dispatch('restore-search', { search: savedSearch });
+        } catch (e) {
+            console.error('Error loading search from localStorage:', e);
+        }
+    }
+
+    // Listen for Livewire events to save/load cart and search
+    $wire.on('load-cart-from-storage', () => {
+        let savedCart = localStorage.getItem('tokoatik_cart');
+        if (savedCart) {
+            try {
+                let cartData = JSON.parse(savedCart);
+                $wire.dispatch('restore-cart-data', { cartData: cartData });
+            } catch (e) {
+                console.error('Error loading cart:', e);
+            }
+        }
+    });
+
+    $wire.on('save-cart-to-storage', (event) => {
+        try {
+            let cart = event.cart || event[0]?.cart || [];
+            localStorage.setItem('tokoatik_cart', JSON.stringify(cart));
+        } catch (e) {
+            console.error('Error saving cart to localStorage:', e);
+        }
+    });
+
+    $wire.on('load-search-from-storage', () => {
+        let savedSearch = localStorage.getItem('tokoatik_search');
+        if (savedSearch) {
+            try {
+                $wire.dispatch('restore-search', { search: savedSearch });
+            } catch (e) {
+                console.error('Error loading search:', e);
+            }
+        }
+    });
+
+    $wire.on('save-search-to-storage', (event) => {
+        try {
+            let search = event.search || event[0]?.search || '';
+            if (search) {
+                localStorage.setItem('tokoatik_search', search);
+            } else {
+                localStorage.removeItem('tokoatik_search');
+            }
+        } catch (e) {
+            console.error('Error saving search to localStorage:', e);
+        }
+    });
+</script>
+@endscript
+
 
 </div>

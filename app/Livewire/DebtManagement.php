@@ -50,7 +50,7 @@ class DebtManagement extends Component
     public function createDebt()
     {
         $this->resetDebtFields();
-        $this->debtDate = now()->toDateTimeString();
+        $this->debtDate = now()->toDateString();
         $this->isDebtModalOpen = true;
     }
 
@@ -66,7 +66,7 @@ class DebtManagement extends Component
         $this->customerName = '';
         $this->address = '';
         $this->amount = '';
-        $this->debtDate = now()->toDateTimeString();
+        $this->debtDate = now()->toDateString();
         $this->notes = '';
         $this->transactionId = '';
     }
@@ -101,7 +101,7 @@ class DebtManagement extends Component
         $this->customerName = $debt->customer_name;
         $this->address = $debt->address;
         $this->amount = $debt->amount;
-        $this->debtDate = $debt->debt_date->toDateTimeString();
+        $this->debtDate = $debt->debt_date->toDateString();
         $this->notes = $debt->notes;
         $this->transactionId = $debt->transaction_id;
         
