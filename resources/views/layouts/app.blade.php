@@ -1,7 +1,11 @@
 <!DOCTYPE html>
 <html lang="{{ str_replace('_', '-', app()->getLocale()) }}"
-    x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }"
-    x-init="$watch('darkMode', val => localStorage.setItem('darkMode', val))" x-bind:class="{ 'dark': darkMode }">
+    x-data="{ darkMode: localStorage.getItem('darkMode') === 'true' }" x-init="$watch('darkMode', val => {
+        localStorage.setItem('darkMode', val);
+        if (val) document.documentElement.classList.add('dark');
+        else document.documentElement.classList.remove('dark');
+    })" {{-- Ini penting agar saat refresh, class dark langsung ada sebelum Alpine load --}}
+    class="{{ (isset($_COOKIE['darkMode']) && $_COOKIE['darkMode'] === 'true') ? 'dark' : '' }}">
 
 <head>
     <meta charset="utf-8">
