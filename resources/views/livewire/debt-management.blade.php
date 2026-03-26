@@ -6,7 +6,7 @@
                 manual.</p>
         </div>
 
-        <div
+        <!-- <div
             class="flex p-1 bg-gray-100 dark:bg-gray-800 rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 shadow-sm w-max">
             <button wire:click="setTab('debts')"
                 class="px-5 py-2 text-sm font-medium rounded-lg transition-all {{ $activeTab === 'debts' ? 'bg-white text-indigo-600 shadow-sm dark:bg-gray-700 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200' }}">
@@ -16,7 +16,7 @@
                 class="px-5 py-2 text-sm font-medium rounded-lg transition-all {{ $activeTab === 'notes' ? 'bg-white text-indigo-600 shadow-sm dark:bg-gray-700 dark:text-indigo-400' : 'text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200' }}">
                 Catatan
             </button>
-        </div>
+        </div> -->
     </div>
 
     @if (session()->has('message'))
