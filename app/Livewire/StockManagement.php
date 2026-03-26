@@ -12,6 +12,7 @@ use App\Models\PurchaseItem;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
 use Livewire\WithFileUploads;
+use Intervention\Image\Laravel\Facades\Image;
 
 class StockManagement extends Component
 {
@@ -158,12 +159,12 @@ class StockManagement extends Component
         $this->purchaseItems = array_values($this->purchaseItems);
     }
 
-    public function store()
+public function store()
 {
     $this->validate([
         'supplier_id' => 'required|exists:suppliers,id',
         'purchase_date' => 'required|date',
-        'receipt_image' => 'nullable|image|max:20000', 
+        'receipt_image' => 'nullable|image|max:20000', // Izinkan upload awal besar, nanti kita press
     ]);
 
     if (count($this->purchaseItems) === 0) {
@@ -173,12 +174,26 @@ class StockManagement extends Component
 
     DB::beginTransaction();
     try {
-        $supplier = Supplier::findOrFail($this->supplier_id); // Ambil sekali di luar loop
+        $supplier = Supplier::findOrFail($this->supplier_id);
 
+        // --- PROSES KOMPRESI GAMBAR ---
         $receiptImagePath = null;
         if ($this->receipt_image) {
-            $receiptImagePath = $this->receipt_image->store('receipts', 'public');
+            // Buat nama file unik
+            $filename = 'receipts/' . uniqid() . '.jpg';
+            
+            // Baca gambar, resize ke lebar 1200px (cocok untuk struk agar teks tetap terbaca)
+            $img = Image::read($this->image->getRealPath());
+            $img->scale(width: 1200); 
+
+            // Encode ke JPG kualitas 75% (cukup hemat ruang untuk struk/nota)
+            $encoded = $img->toJpeg(75);
+
+            // Simpan ke storage
+            Storage::disk('public')->put($filename, (string) $encoded);
+            $receiptImagePath = $filename;
         }
+        // ------------------------------
 
         $purchase = Purchase::create([
             'supplier_id' => $this->supplier_id,
@@ -202,7 +217,7 @@ class StockManagement extends Component
 
             // Update stok produk
             $product = Product::findOrFail($item['product_id']);
-            $product->increment('current_stock', $realQty); // Lebih aman menggunakan increment()
+            $product->increment('current_stock', $realQty);
 
             // Catat mutasi stok
             StockMovement::create([
@@ -224,8 +239,11 @@ class StockManagement extends Component
         
     } catch (\Exception $e) {
         DB::rollBack();
+        // Hapus file jika database gagal agar storage tidak penuh sampah (Opsional)
+        if ($receiptImagePath) {
+            Storage::disk('public')->delete($receiptImagePath);
+        }
         session()->flash('error', 'Gagal mencatat pembelian: ' . $e->getMessage());
     }
 }
 }
-
