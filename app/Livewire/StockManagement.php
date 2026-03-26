@@ -163,7 +163,7 @@ class StockManagement extends Component
     $this->validate([
         'supplier_id' => 'required|exists:suppliers,id',
         'purchase_date' => 'required|date',
-        'receipt_image' => 'nullable|image|max:2048', // Maks 2MB
+        'receipt_image' => 'nullable|image|max:20000', 
     ]);
 
     if (count($this->purchaseItems) === 0) {
